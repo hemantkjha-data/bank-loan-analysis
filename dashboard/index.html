@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bank Loan Analysis Dashboard — Hemant Kumar Jha</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root { --bg:#0b1220; --card:#121c33; --line:rgba(255,255,255,.09); --ink:#e7edf8; --mut:#93a3c4; --blue:#3b82f6; --gold:#d9ab52; --green:#34d399; --red:#f87171; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--ink); font-family:"Segoe UI",system-ui,sans-serif; padding:24px; }
+  .wrap { max-width:1240px; margin:0 auto; }
+  h1 { font-size:22px; } .sub { color:var(--mut); font-size:13px; margin-top:4px; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(165px,1fr)); gap:12px; margin:16px 0; }
+  .kpi { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px 18px; }
+  .kpi .lbl { color:var(--mut); font-size:11px; letter-spacing:1.4px; text-transform:uppercase; font-weight:700; }
+  .kpi .val { font-size:23px; font-weight:800; margin-top:6px; color:#fff; }
+  .kpi .val small { font-size:13px; color:var(--mut); }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; }
+  .panel h3 { font-size:13px; color:var(--mut); letter-spacing:1px; text-transform:uppercase; margin-bottom:10px; font-weight:700; }
+  .chartbox { position:relative; height:260px; }
+  .wide { grid-column:1 / -1; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  th { text-align:left; color:var(--mut); font-size:11px; letter-spacing:1px; text-transform:uppercase; padding:6px 8px; border-bottom:1px solid var(--line); }
+  td { padding:7px 8px; border-bottom:1px solid rgba(255,255,255,.05); }
+  td.num, th.num { text-align:right; }
+  .insight { border-left:3px solid var(--gold); background:rgba(217,171,82,.08); border-radius:0 12px 12px 0; padding:12px 14px; font-size:13px; line-height:1.6; color:#e8e2cf; }
+  .insight b { color:#fff; }
+  .foot { color:var(--mut); font-size:11.5px; margin-top:16px; line-height:1.6; }
+  .riskbar { height:10px; border-radius:5px; background:rgba(255,255,255,.08); overflow:hidden; margin-top:4px; }
+  .riskbar i { display:block; height:100%; background:linear-gradient(90deg,#f87171,#fbbf24); }
+  @media (max-width:760px){ .grid { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🏦 Bank Loan Analysis Dashboard</h1>
+  <div class="sub">10,000 loan applications (2023–2025) · SQL-driven credit risk analytics · Built by Hemant Kumar Jha</div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="grid">
+    <div class="panel wide">
+      <h3>⚠️ Credit Risk Insight — Grade Ladder</h3>
+      <div class="insight" id="insightBox"></div>
+    </div>
+    <div class="panel"><h3>Default Rate by Grade</h3><div class="chartbox"><canvas id="cGrade"></canvas></div></div>
+    <div class="panel"><h3>Funded Amount by Purpose</h3><div class="chartbox"><canvas id="cPurpose"></canvas></div></div>
+    <div class="panel"><h3>Loan Volume by Month</h3><div class="chartbox"><canvas id="cMonth"></canvas></div></div>
+    <div class="panel"><h3>Default Rate vs DTI Band</h3><div class="chartbox"><canvas id="cDti"></canvas></div></div>
+    <div class="panel"><h3>Default Rate by Income Band</h3><div class="chartbox"><canvas id="cIncome"></canvas></div></div>
+    <div class="panel"><h3>Home Ownership Risk</h3><div class="chartbox"><canvas id="cHome"></canvas></div></div>
+    <div class="panel wide"><h3>Term &amp; Grade Detail</h3><table id="tDetail"></table></div>
+  </div>
+
+  <div class="foot">
+    Pipeline: 10,000-row synthetic-but-realistic lending dataset → SQL aggregations (GROUP BY, CASE-based risk flags, band bucketing)
+    → this dashboard. Key risk dimensions: grade ladder, debt-to-income, income band, home ownership, term.
+  </div>
+</div>
+
+<script>
+const AGG = {"kpi":{"applications":10000,"funded":3470880000,"avg_rate":11.54,"avg_dti":19.1,"defaulted":1351,"default_rate":13.51,"recovered_from_bad":151143551,"avg_good_loan":354408},"byGrade":[{"grade":"A","loans":1882,"amount":620990000,"avg_rate":8.03,"default_rate":4.99},{"grade":"B","loans":3473,"amount":1298750000,"avg_rate":10.21,"default_rate":11.69},{"grade":"C","loans":2134,"amount":787010000,"avg_rate":12.41,"default_rate":15.7},{"grade":"D","loans":1628,"amount":538810000,"avg_rate":14.45,"default_rate":18.24},{"grade":"E","loans":883,"amount":225320000,"avg_rate":16.83,"default_rate":24.8}],"byPurpose":[{"purpose":"Personal","loans":2179,"amount":786040000,"default_rate":14.96},{"purpose":"Car","loans":1864,"amount":725910000,"default_rate":15.13},{"purpose":"Business","loans":1978,"amount":659190000,"default_rate":7.48},{"purpose":"Home","loans":2153,"amount":655970000,"default_rate":12.4},{"purpose":"Education","loans":1826,"amount":643770000,"default_rate":17.96}],"byMonth":[{"ym":"2023-01","loans":325,"amount":107320000,"bad":55},{"ym":"2023-02","loans":270,"amount":65960000,"bad":26},{"ym":"2023-03","loans":310,"amount":108630000,"bad":54},{"ym":"2023-04","loans":197,"amount":52010000,"bad":42},{"ym":"2023-05","loans":380,"amount":142310000,"bad":39},{"ym":"2023-06","loans":367,"amount":132520000,"bad":82},{"ym":"2023-07","loans":366,"amount":112330000,"bad":52},{"ym":"2023-08","loans":334,"amount":117720000,"bad":39},{"ym":"2023-09","loans":285,"amount":99710000,"bad":13},{"ym":"2023-10","loans":219,"amount":93390000,"bad":26},{"ym":"2023-11","loans":369,"amount":135830000,"bad":68},{"ym":"2023-12","loans":324,"amount":87010000,"bad":55},{"ym":"2024-01","loans":323,"amount":80020000,"bad":54},{"ym":"2024-02","loans":302,"amount":167520000,"bad":82},{"ym":"2024-03","loans":289,"amount":102890000,"bad":42},{"ym":"2024-04","loans":403,"amount":128630000,"bad":54},{"ym":"2024-05","loans":323,"amount":113920000,"bad":13},{"ym":"2024-06","loans":341,"amount":110060000,"bad":26},{"ym":"2024-07","loans":286,"amount":137840000,"bad":0},{"ym":"2024-08","loans":415,"amount":168310000,"bad":41},{"ym":"2024-09","loans":256,"amount":50490000,"bad":41},{"ym":"2024-10","loans":356,"amount":173940000,"bad":80},{"ym":"2024-11","loans":269,"amount":77130000,"bad":42},{"ym":"2024-12","loans":228,"amount":64980000,"bad":40},{"ym":"2025-01","loans":246,"amount":79830000,"bad":43},{"ym":"2025-02","loans":165,"amount":53530000,"bad":14},{"ym":"2025-03","loans":270,"amount":63510000,"bad":14},{"ym":"2025-04","loans":338,"amount":109220000,"bad":40},{"ym":"2025-05","loans":244,"amount":93740000,"bad":53},{"ym":"2025-06","loans":284,"amount":111680000,"bad":26},{"ym":"2025-07","loans":350,"amount":119480000,"bad":40},{"ym":"2025-08","loans":278,"amount":106330000,"bad":26},{"ym":"2025-09","loans":288,"amount":103090000,"bad":29}],"byIncome":[{"band":"50k-75k","loans":2094,"default_rate":10.41,"avg_dti":18.129512893982806},{"band":"100k+","loans":2086,"default_rate":14.09,"avg_dti":18.23437200383509},{"band":"75k-100k","loans":2025,"default_rate":15.41,"avg_dti":19.54074074074074},{"band":"25k-50k","loans":1808,"default_rate":9.68,"avg_dti":19.622511061946902},{"band":"<25k","loans":1987,"default_rate":17.72,"avg_dti":20.048716658278813}],"byHome":[{"home_ownership":"MORTGAGE","loans":3160,"default_rate":11.96},{"home_ownership":"OWN","loans":3390,"default_rate":14.78},{"home_ownership":"RENT","loans":3450,"default_rate":13.68}],"byTerm":[{"term":36,"loans":6538,"default_rate":12.39,"avg_rate":11.65},{"term":60,"loans":3462,"default_rate":15.63,"avg_rate":11.35}],"dtiBands":[{"band":"0-10","loans":1932,"default_rate":10.61},{"band":"10-20","loans":3700,"default_rate":13.81},{"band":"20-30","loans":2899,"default_rate":15.38},{"band":"30+","loans":1469,"default_rate":12.87}]};
+const cr = n => n >= 1e7 ? '₹' + (n/1e7).toFixed(2) + ' Cr' : '₹' + (n/1e5).toFixed(1) + ' L';
+const $ = id => document.getElementById(id);
+const AXIS = { x:{ticks:{color:'#93a3c4'}}, y:{ticks:{color:'#93a3c4'}} };
+const LEG = { labels:{color:'#93a3c4'} };
+
+const k = AGG.kpi;
+$('kpis').innerHTML = [
+  ['Applications', k.applications.toLocaleString('en-IN')],
+  ['Total Funded', cr(k.funded)],
+  ['Avg Interest', k.avg_rate + '<small> %</small>'],
+  ['Default Rate', k.default_rate + '<small> %</small>'],
+  ['Bad Loans', k.defaulted.toLocaleString('en-IN')],
+  ['Avg DTI', k.avg_dti + '<small> %</small>'],
+].map(x => '<div class="kpi"><div class="lbl">'+x[0]+'</div><div class="val">'+x[1]+'</div></div>').join('');
+
+const worst = AGG.byGrade[AGG.byGrade.length-1];
+const a = AGG.byGrade[0];
+$('insightBox').innerHTML =
+  '<b>Grade ladder is the strongest risk predictor.</b> Grade A defaults at '+a.default_rate+'% while grade '+worst.grade+' defaults at '+worst.default_rate+'% — a clean monotonic ladder. '+
+  'Add the DTI signal (loans at DTI 30+ default at '+AGG.dtiBands[AGG.dtiBands.length-1].default_rate+'% vs '+AGG.dtiBands[0].default_rate+'% at DTI 0-10) and the two factors give a simple, defensible risk-policy rule: '+
+  '<b>price by grade, cap by DTI.</b> Even with a '+k.default_rate+'% default rate, ₹'+(k.recovered_from_bad/1e7).toFixed(1)+' Cr was recovered from bad loans — collections efficiency matters as much as screening.';
+
+new Chart($('cGrade'), { type:'bar', data:{ labels:AGG.byGrade.map(g=>g.grade), datasets:[
+  { label:'Default %', data:AGG.byGrade.map(g=>g.default_rate), backgroundColor:'#f87171', borderRadius:6 }]},
+  options:{ plugins:{legend:{display:false}}, scales:AXIS }});
+
+new Chart($('cPurpose'), { type:'doughnut', data:{ labels:AGG.byPurpose.map(p=>p.purpose),
+  datasets:[{ data:AGG.byPurpose.map(p=>+(p.amount/1e7).toFixed(1)), backgroundColor:['#3b82f6','#8b5cf6','#34d399','#d9ab52','#f472b6'] }]},
+  options:{ plugins:{legend:{position:'right',labels:LEG.labels}} }});
+
+new Chart($('cMonth'), { type:'line', data:{ labels:AGG.byMonth.map(m=>m.ym), datasets:[
+  { label:'Loans funded (₹ Cr)', data:AGG.byMonth.map(m=>+(m.amount/1e7).toFixed(2)), borderColor:'#3b82f6', backgroundColor:'rgba(59,130,246,.15)', fill:true, tension:.3 },
+  { label:'Bad loans', data:AGG.byMonth.map(m=>m.bad), borderColor:'#f87171', tension:.3 }]},
+  options:{ plugins:{legend:{labels:LEG.labels}}, scales:AXIS }});
+
+new Chart($('cDti'), { type:'bar', data:{ labels:AGG.dtiBands.map(b=>b.band), datasets:[
+  { label:'Default %', data:AGG.dtiBands.map(b=>b.default_rate), backgroundColor:AGG.dtiBands.map(b=>b.default_rate>18?'#f87171':'#fbbf24'), borderRadius:6 }]},
+  options:{ plugins:{legend:{display:false}}, scales:AXIS }});
+
+new Chart($('cIncome'), { type:'bar', data:{ labels:AGG.byIncome.map(b=>b.band), datasets:[
+  { label:'Default %', data:AGG.byIncome.map(b=>b.default_rate), backgroundColor:'#8b5cf6', borderRadius:6 }]},
+  options:{ plugins:{legend:{display:false}}, scales:AXIS }});
+
+new Chart($('cHome'), { type:'bar', data:{ labels:AGG.byHome.map(h=>h.home_ownership), datasets:[
+  { label:'Default %', data:AGG.byHome.map(h=>h.default_rate), backgroundColor:'#34d399', borderRadius:6 }]},
+  options:{ plugins:{legend:{display:false}}, scales:AXIS }});
+
+$('tDetail').innerHTML = '<tr><th>Grade</th><th class="num">Loans</th><th class="num">Amount</th><th class="num">Avg Rate</th><th class="num">Default %</th><th class="num">Risk</th></tr>' +
+  AGG.byGrade.map(g=>'<tr><td>'+g.grade+'</td><td class="num">'+g.loans.toLocaleString('en-IN')+'</td><td class="num">'+cr(g.amount)+'</td><td class="num">'+g.avg_rate+'%</td><td class="num">'+g.default_rate+'%</td><td><div class="riskbar"><i style="width:'+g.default_rate*4+'%"></i></div></td></tr>').join('') +
+  '<tr><th>Term</th><th class="num">Loans</th><th class="num">Avg Rate</th><th class="num">Default %</th><th colspan="2"></th></tr>' +
+  AGG.byTerm.map(t=>'<tr><td>'+t.term+' mo</td><td class="num">'+t.loans.toLocaleString('en-IN')+'</td><td class="num">'+t.avg_rate+'%</td><td class="num">'+t.default_rate+'%</td><td colspan="2"></td></tr>').join('');
+</script>
+</body>
+</html>
